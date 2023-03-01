@@ -21,6 +21,8 @@ addRequired(p, 'epoch_length', @isnumeric);
 addParameter(p, 'TimeUnit', 1e-3, @isnumeric);
 addParameter(p, 'SaveCSV', false, @islogical);
 addParameter(p, 'outputDir', pwd, @isfolder);
+addParameter(p, 'condition', missing, @mustBeNumericOrLogical);
+
 parse(p, EEG, main_trigger, backup_trigger, epoch_length, varargin{:});
 
 % Convert events to user-friendly table
@@ -28,8 +30,10 @@ parse(p, EEG, main_trigger, backup_trigger, epoch_length, varargin{:});
 eventtbl_raw = array2table(eventout, 'VariableNames', fields);
 
 % Recreate new event table only using relevant columns
-eventtbl = table(eventtbl_raw.trial_type, eventtbl_raw.latency, 'VariableNames', {'type','latency'});
+eventtbl = table(eventtbl_raw.trial_type, eventtbl_raw.Condition, eventtbl_raw.latency, 'VariableNames', {'type','condition', 'latency'});
 eventtbl_select = eventtbl(ismember(eventtbl.type, [main_trigger, backup_trigger]),:);
+eventtbl_select.LaggedCondition = [eventtbl_select.condition(2:end); NaN];
+
 
 % Get counts
 stimcounts = cell2table(tabulate(eventtbl_select{:,'type'}), 'VariableNames', {'type','count','percentage'});
@@ -44,10 +48,10 @@ else
     disp('# of DINs does not equal # of stimuli.');
     valid_event = backup_trigger;
 end
-inevents =  eventtbl(ismember(eventtbl.type, valid_event),:);
+inevents =  eventtbl_select(ismember(eventtbl_select.type, valid_event),:);
 
 % Create valid event structure
-eventEEG = pop_importevent(EEG, 'event', [inevents.type inevents.latency], 'fields', {'type','latency'}, 'timeunit', p.Results.TimeUnit, 'append', 'no');
+eventEEG = pop_importevent(EEG, 'event', [inevents.type inevents.latency inevents.LaggedCondition], 'fields', {'type','latency', 'condition'}, 'timeunit', p.Results.TimeUnit, 'append', 'no');
 
 % Create epoched data
 epochEEG = pop_epoch(eventEEG, valid_event, epoch_length, 'epochinfo', 'yes');
@@ -58,7 +62,7 @@ epochEEG2 = pop_selectevent(epochEEG, 'latency','-.1 <= .1','deleteevents','on')
 % Query raw event table
 [eventout_epoch, fields_epoch] = eeg_eventformat(epochEEG2.epoch, 'array',  {'type','latency'});
 
-% test if for empty dataset
+% error checking for empty epochs
 assert(~isempty(eventout_epoch), 'No epochs available - check event codes or timeunit.')
 
 % Verify event conversion with table output
