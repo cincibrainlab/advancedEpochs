@@ -58,6 +58,9 @@ epochEEG2 = pop_selectevent(epochEEG, 'latency','-.1 <= .1','deleteevents','on')
 % Query raw event table
 [eventout_epoch, fields_epoch] = eeg_eventformat(epochEEG2.epoch, 'array',  {'type','latency'});
 
+% test if for empty dataset
+assert(~isempty(eventout_epoch), 'No epochs available - check event codes or timeunit.')
+
 % Verify event conversion with table output
 eventtbl_epoch = array2table(eventout_epoch, 'VariableNames', fields_epoch);
 
