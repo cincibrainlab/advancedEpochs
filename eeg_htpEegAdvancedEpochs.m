@@ -21,7 +21,7 @@ addRequired(p, 'epoch_length', @isnumeric);
 addParameter(p, 'TimeUnit', 1e-3, @isnumeric);
 addParameter(p, 'SaveCSV', false, @islogical);
 addParameter(p, 'outputDir', pwd, @isfolder);
-addParameter(p, 'condition', missing, @mustBeNumericOrLogical);
+addParameter(p, 'withCondition', false, @mustBeNumericOrLogical);
 
 parse(p, EEG, main_trigger, backup_trigger, epoch_length, varargin{:});
 
@@ -33,7 +33,6 @@ eventtbl_raw = array2table(eventout, 'VariableNames', fields);
 eventtbl = table(eventtbl_raw.trial_type, eventtbl_raw.Condition, eventtbl_raw.latency, 'VariableNames', {'type','condition', 'latency'});
 eventtbl_select = eventtbl(ismember(eventtbl.type, [main_trigger, backup_trigger]),:);
 eventtbl_select.LaggedCondition = [eventtbl_select.condition(2:end); NaN];
-
 
 % Get counts
 stimcounts = cell2table(tabulate(eventtbl_select{:,'type'}), 'VariableNames', {'type','count','percentage'});
