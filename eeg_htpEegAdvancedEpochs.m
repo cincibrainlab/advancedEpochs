@@ -20,6 +20,7 @@ addRequired(p, 'backup_trigger', @iscell);
 addRequired(p, 'epoch_length', @isnumeric);
 addParameter(p, 'TimeUnit', 1e-3, @isnumeric);
 addParameter(p, 'SaveCSV', false, @islogical);
+addParameter(p, 'outputDir', pwd, @isfolder);
 parse(p, EEG, main_trigger, backup_trigger, epoch_length, varargin{:});
 
 % Convert events to user-friendly table
@@ -62,7 +63,7 @@ eventtbl_epoch = array2table(eventout_epoch, 'VariableNames', fields_epoch);
 
 % Save output as a CSV file
 if p.Results.SaveCSV
-    filename = [EEG.filepath filesep EEG.filename(1:end-4) '_epoch_table.csv'];
+    filename = [p.Results.outputDir, filesep EEG.filename(1:end-4) '_epoch_table.csv'];
     writetable(eventtbl_epoch, filename);
 end
 
