@@ -24,8 +24,15 @@ addParameter(p, 'outputDir', pwd, @isfolder);
 parse(p, EEG, main_trigger, backup_trigger, epoch_length, varargin{:});
 
 % Convert events to user-friendly table
-[eventout, fields] = eeg_eventformat(EEG.event, 'array');
-eventtbl_raw = array2table(eventout, 'VariableNames', fields);
+try
+    [eventout, fields] = eeg_eventformat(EEG.event, 'array');
+    eventtbl_raw = array2table(eventout, 'VariableNames', fields);
+catch % empty fields can crash the eventformat function, so this is a failsafe
+    [eventout, fields] = eeg_eventformat(EEG.event, 'struct');
+    eventtbl_raw = struct2table(eventout);
+    eventtbl_raw.latency = num2cell(eventtbl_raw.latency);
+    eventtbl_raw.Condition = num2cell(eventtbl_raw.Condition);
+end
 
 % Recreate new event table only using relevant columns
 eventtbl = table(eventtbl_raw.trial_type, eventtbl_raw.Condition, eventtbl_raw.latency, 'VariableNames', {'type','condition', 'latency'});
