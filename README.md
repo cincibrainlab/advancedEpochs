@@ -16,11 +16,10 @@ There are also two optional input parameters:
 
 if main trigger does not equal backup trigger, backtrigger is used.
 
-'TimeUnit': time unit (default: 1e-3)
 'SaveCSV': whether to save the output as a CSV file (default: false)
 Here is an example usage:
 
-[epochEEG, eventtbl_epoch] = htpEegAdvancedEpochs(EEG, {'DIN3'}, {'ch1+', 'ch2+'}, [-0.1 0.4], 'TimeUnit', 1e-3, 'SaveCSV', true);
+[epochEEG, eventtbl_epoch] = htpEegAdvancedEpochs(EEG, {'DIN3'}, {'ch1+', 'ch2+'}, [-0.1 0.4], 'SaveCSV', true);
 This will create epoched EEG data and an event table in CSV format. The output will also be saved as a CSV file in the same directory as the EEG SET file.
 
 ## Contributing
