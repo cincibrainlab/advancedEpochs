@@ -35,8 +35,11 @@ catch % empty fields can crash the eventformat function, so this is a failsafe
 end
 
 % Recreate new event table only using relevant columns
-eventtbl = table(eventtbl_raw.trial_type, eventtbl_raw.Condition, eventtbl_raw.latency, 'VariableNames', {'type','condition', 'latency'});
+eventtbl = table(eventtbl_raw.trial_type, eventtbl_raw.Condition, eventtbl_raw.latency, 'VariableNames', {'type','urcondition', 'latency'});
 eventtbl_select = eventtbl(ismember(eventtbl.type, [main_trigger, backup_trigger]),:);
+
+% revise EEG event structure with relevant variables
+EEG.event = table2struct(eventtbl);
 
 % Get counts
 stimcounts = cell2table(tabulate(eventtbl_select{:,'type'}), 'VariableNames', {'type','count','percentage'});
@@ -48,19 +51,20 @@ findCount = @(T, type) sum(table2array(T(ismember(T.type, type), 'count')));
 if(isequal(findCount(stimcounts, main_trigger), findCount(stimcounts, backup_trigger)))
     disp('Photo sensor data is valid.')
     valid_event = main_trigger;
-    eventtbl_select.LaggedCondition = [eventtbl_select.condition(2:end); NaN];
+    eventtbl_select.condition = [eventtbl_select.urcondition(2:end); NaN];
 else
     disp('# of DINs does not equal # of stimuli.');
     valid_event = backup_trigger;
-    eventtbl_select.LaggedCondition = [eventtbl_select.condition(1:end)];
+    eventtbl_select.condition = [eventtbl_select.urcondition(1:end)];
 end
+eventtbl_select = removevars(eventtbl_select, 'urcondition');
 inevents =  eventtbl_select(ismember(eventtbl_select.type, valid_event),:);
 
-% Create valid event structure
-eventEEG = pop_importevent(EEG, 'event', [inevents.type inevents.latency inevents.LaggedCondition], 'fields', {'type','latency', 'condition'}, 'timeunit', p.Results.TimeUnit, 'append', 'no');
+EEG.events = table2struct(inevents);
 
 % Create epoched data
-epochEEG = pop_epoch(eventEEG, valid_event, epoch_length, 'epochinfo', 'yes');
+epochEEG = pop_epoch(EEG, valid_event, epoch_length, 'epochinfo', 'yes');
+
 
 % Narrow down events
 epochEEG2 = pop_selectevent(epochEEG, 'latency','-.1 <= .1','deleteevents','on');
