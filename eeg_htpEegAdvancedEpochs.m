@@ -6,11 +6,20 @@ function [outEEG, extra] = eeg_htpEegAdvancedEpochs(EEG, main_trigger, backup_tr
 % - backup_trigger: cell array input for backup trigger(s)
 % - epoch_length: cell array input for epoch length(s)
 % Optional Inputs:
-% - 'TimeUnit': time unit (default: 1e-3)
 % - 'SaveCSV': whether to save the output as a CSV file (default: false)
 % Outputs:
 % - epochEEG: epoched EEG data
 % - eventtbl_epoch: event table in CSV format (if 'SaveCSV' is true)
+% Example:
+%         main_trigger = {'DIN3'};
+%         backup_trigger = {'ch1+', 'ch2+'};
+%         epoch_length = [-.1 .4];
+%         baseline_length = [-100 0];
+%         alog.addAction('epoch', 'DIN3');
+% 
+%         [output_set, extras]  = cellfun(@(EEG) eeg_htpEegAdvancedEpochs(EEG, main_trigger, backup_trigger, ...
+%             epoch_length, baseline_length, rois, 'outputDir', results_dir ,'SaveCSV', true),...
+%             input_set, 'UniformOutput',0);
 
 % Create input parser
 p = inputParser;
@@ -20,7 +29,6 @@ addRequired(p, 'backup_trigger', @iscell);
 addRequired(p, 'epoch_length', @isnumeric);
 addRequired(p, 'baseline_length', @isnumeric);
 addRequired(p, 'rois', @iscell);
-addParameter(p, 'TimeUnit', 1e-3, @isnumeric);
 addParameter(p, 'SaveCSV', false, @islogical);
 addParameter(p, 'outputDir', pwd, @isfolder);
 parse(p, EEG, main_trigger, backup_trigger, ...
