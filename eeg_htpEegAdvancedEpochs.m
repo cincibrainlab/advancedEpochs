@@ -1,4 +1,4 @@
-function [outEEG, eventtbl_epoch] = eeg_htpEegAdvancedEpochs(EEG, main_trigger, backup_trigger, epoch_length, varargin)
+function [outEEG, extra] = eeg_htpEegAdvancedEpochs(EEG, main_trigger, backup_trigger, epoch_length, baseline_length, rois, varargin)
 % Advanced epoching example for complex ERP paradigms
 % Inputs:
 % - EEG: input EEG SET file
@@ -18,10 +18,13 @@ addRequired(p, 'EEG');
 addRequired(p, 'main_trigger', @iscell);
 addRequired(p, 'backup_trigger', @iscell);
 addRequired(p, 'epoch_length', @isnumeric);
+addRequired(p, 'baseline_length', @isnumeric);
+addRequired(p, 'rois', @iscell);
 addParameter(p, 'TimeUnit', 1e-3, @isnumeric);
 addParameter(p, 'SaveCSV', false, @islogical);
 addParameter(p, 'outputDir', pwd, @isfolder);
-parse(p, EEG, main_trigger, backup_trigger, epoch_length, varargin{:});
+parse(p, EEG, main_trigger, backup_trigger, ...
+    epoch_length, baseline_length, rois, varargin{:});
 
 % Convert events to user-friendly table
 try
@@ -48,7 +51,11 @@ findCount = @(T, type) sum(table2array(T(ismember(T.type, type), 'count')));
 % Error check if photosensor and stimulus counts match
 % TODO: Add action logger for logging invalid photosensor data
 %       Will "lag" condition to align with photosensor if sensor is valid
-if(isequal(findCount(stimcounts, main_trigger), findCount(stimcounts, backup_trigger)))
+
+num_main_trigger = findCount(stimcounts, main_trigger);
+num_backup_trigger = findCount(stimcounts, backup_trigger);
+
+if(isequal(num_main_trigger, num_backup_trigger))
     disp('Photo sensor data is valid.')
     valid_event = main_trigger;
     eventtbl_select.condition = [eventtbl_select.urcondition(2:end); NaN];
@@ -57,20 +64,27 @@ else
     valid_event = backup_trigger;
     eventtbl_select.condition = [eventtbl_select.urcondition(1:end)];
 end
+
+try
+    photo_delay = meanPhotoLatencyDelay(eventtbl_select, main_trigger);
+catch
+    photo_delay = missing;
+end
+
 eventtbl_select = removevars(eventtbl_select, 'urcondition');
 inevents =  eventtbl_select(ismember(eventtbl_select.type, valid_event),:);
 
 EEG.events = table2struct(inevents);
 
 % Create epoched data
-epochEEG = pop_epoch(EEG, valid_event, epoch_length, 'epochinfo', 'yes');
-
+% eventIdx = find(strcmpi({EEG.event.type}, valid_event));
+epochEEG_tmp = pop_epoch(EEG, valid_event, epoch_length,  'epochinfo', 'yes');
 
 % Narrow down events
-epochEEG2 = pop_selectevent(epochEEG, 'latency','-.1 <= .1','deleteevents','on');
+epochEEG = pop_selectevent(epochEEG_tmp, 'latency','-.1 <= .1','deleteevents','on');
 
 % Query raw event table
-[eventout_epoch, fields_epoch] = eeg_eventformat(epochEEG2.epoch, 'array',  {'type','latency','condition'});
+[eventout_epoch, fields_epoch] = eeg_eventformat(epochEEG.epoch, 'array',  {'type','latency','condition'});
 
 % error checking for empty epochs
 assert(~isempty(eventout_epoch), 'No epochs available - check event codes or timeunit.')
@@ -78,7 +92,10 @@ assert(~isempty(eventout_epoch), 'No epochs available - check event codes or tim
 % Verify event conversion with table output
 eventtbl_epoch = array2table(eventout_epoch, 'VariableNames', fields_epoch);
 
-outEEG = epochEEG2;
+% baseline correction
+epochEEG_bl = pop_rmbase(epochEEG, baseline_length);
+
+outEEG = epochEEG_bl;
 
 % Save output as a CSV file
 if p.Results.SaveCSV
@@ -86,4 +103,91 @@ if p.Results.SaveCSV
     writetable(eventtbl_epoch, filename);
 end
 
+% Define the data as a cell array of structures
+info = {
+    struct('Variable', 'function', ...
+    'Type', 'char', ...
+    'Description', mfilename), ...
+    struct('Variable', 'photo_delay', ...
+    'Type', 'numeric', ...
+    'Description', 'Mean latency delay of photo vs. stimulus event'), ...
+    struct('Variable', 'eventtbl_epoch', ...
+    'Type', 'table', ...
+    'Description', 'Post-epoch table of events'), ...
+    struct('Variable', 'filename', ...
+    'Type', 'char', ...
+    'Description', 'input filename'), ...
+    struct('Variable', 'mean_erp', ...
+    'Type', 'numeric', ...
+    'Description', 'mean erp array') ...
+    };
+
+% Convert the cell array of structures to a structure array
+info = [info{:}];
+
+% Convert the structure array to a table
+extra = [];
+extra.info = struct2table(info);
+extra.filename = EEG.filename;
+extra.eventtbl_epoch = eventtbl_epoch;
+extra.photo_delay = photo_delay;
+
+% calculate ROI ERP mean, if no ROI default E70
+erpEEG = pop_select(epochEEG_bl, 'channel', rois);
+extra.mean_erp = mean(mean(erpEEG.data(:,:,:),3),1);
+
+end
+
+function mean_latency = meanPhotoLatencyDelay(eventTable, photo_event)
+% MEANPHOTOLATENCYDELAY Computes the average latency delay between a photo
+% event and the preceding event in an event table.
+%
+%   mean_latency = meanPhotoLatencyDelay(eventTable, photo_event) computes
+%   the average latency delay between the specified photo event and the
+%   preceding event in the given event table.
+%
+%   Inputs:
+%   -------
+%   eventTable : table
+%       A table containing event data. The table should have at least two
+%       columns: 'type', which contains the type of each event, and
+%       'latency', which contains the latency of each event in milliseconds.
+%   photo_event : char
+%       The type of photo event to compute the latency delay for.
+%
+%   Outputs:
+%   --------
+%   mean_latency : double
+%       The average latency delay in milliseconds between the specified
+%       photo event and the preceding event in the table.
+%
+%   Example:
+%   --------
+%   % Load an example event table
+%   load example_event_table.mat
+%
+%   % Compute the mean latency delay for the 'photo' event
+%   mean_latency = meanPhotoLatencyDelay(eventTable, 'photo');
+%
+%   % Display the result
+%   fprintf('Mean latency delay for photo event: %.2f ms\n', mean_latency);
+
+    % Extract the relevant data from the table
+    event = eventTable.type;
+    latency = cell2mat(eventTable.latency);
+
+    % Find the indices of the photo event in the table
+    photo_indices = find(strcmp(photo_event, event));
+
+    % Find the indices of the preceding events
+    preceding_indices = photo_indices - 1;
+
+    % Only keep the indices that are valid (i.e., not negative)
+    valid_indices = preceding_indices > 0;
+
+    % Compute the latency delays between the photo event and the preceding events
+    delay = latency(photo_indices(valid_indices)) - latency(preceding_indices(valid_indices));
+
+    % Compute the average latency delay
+    mean_latency = mean(delay, 'omitnan');
 end
