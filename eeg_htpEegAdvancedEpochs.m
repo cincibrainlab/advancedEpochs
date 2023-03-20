@@ -82,7 +82,7 @@ end
 eventtbl_select = removevars(eventtbl_select, 'urcondition');
 inevents =  eventtbl_select(ismember(eventtbl_select.type, valid_event),:);
 
-EEG.events = table2struct(inevents);
+EEG.event = table2struct(inevents);
 
 % Create epoched data
 % eventIdx = find(strcmpi({EEG.event.type}, valid_event));
